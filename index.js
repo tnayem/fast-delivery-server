@@ -1,6 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 dotenv.config();
 
@@ -10,12 +11,10 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-// Mongodb Connect
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+// MongoDB
 const uri = `mongodb+srv://${process.env.DB_user}:${process.env.DB_password}@cluster0.etjzxzd.mongodb.net/?appName=Cluster0`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
     serverApi: {
         version: ServerApiVersion.v1,
@@ -26,54 +25,54 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
-        // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
-        const parcelCollection = client.db('parcelDb').collection('parcels')
-        // Post parcel data from client side 
-        app.post('/parcels', async (req, res) => {
-            const data = req.body
-            const result = await parcelCollection.insertOne(data)
-            res.send(result)
-        })
+        const parcelCollection = client.db('parcelDb').collection('parcels');
 
-        // Get parcels from database 
+        // ✅ POST parcel
+        app.post('/parcels', async (req, res) => {
+            const data = req.body;
+            data.creation_date = new Date();
+            const result = await parcelCollection.insertOne(data);
+            res.send(result);
+        });
+
+        // ✅ GET specific user parcels (latest first)
         app.get('/parcels', async (req, res) => {
             try {
-                const email = req.query.email // use query parameter
+                const email = req.query.email;
                 let query = {}
-
                 if (email) {
-                    query = { created_by:email }
+                    query = {created_by: email}
                 }
 
-                const parcels = await parcelCollection
+                const result = await parcelCollection
                     .find(query)
-                    .sort({ _id: -1 }) // latest first
-                    .toArray()
+                    .sort({ creation_date: -1 })
+                    .toArray();
 
-                res.status(200).send(parcels)
-
+                res.status(200).send(result);
             } catch (error) {
-                console.error('Error fetching user parcels:', error)
-                res.status(500).send({ message: 'Failed to load user parcels' })
+                res.status(500).send({ message: 'Failed to load parcels' });
             }
-        })
-        // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
-    } finally {
-        // Ensures that the client will close when you finish/error
-        // await client.close();
-    }
+        });
+
+        // ✅ DELETE parcel
+        app.delete('/parcels/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await parcelCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
+
+        console.log('MongoDB connected');
+    } finally { }
 }
+
 run().catch(console.dir);
 
-// Default Route
 app.get('/', (req, res) => {
     res.send('Parcel API is running...');
 });
 
-// Start server
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
