@@ -30,12 +30,34 @@ async function run() {
         await client.connect();
         const parcelCollection = client.db('parcelDb').collection('parcels')
         // Post parcel data from client side 
-        app.post('/parcels', async(req,res)=>{
-            const data = req.body 
+        app.post('/parcels', async (req, res) => {
+            const data = req.body
             const result = await parcelCollection.insertOne(data)
             res.send(result)
         })
 
+        // Get parcels from database 
+        app.get('/parcels', async (req, res) => {
+            try {
+                const email = req.query.email // use query parameter
+                let query = {}
+
+                if (email) {
+                    query = { created_by:email }
+                }
+
+                const parcels = await parcelCollection
+                    .find(query)
+                    .sort({ _id: -1 }) // latest first
+                    .toArray()
+
+                res.status(200).send(parcels)
+
+            } catch (error) {
+                console.error('Error fetching user parcels:', error)
+                res.status(500).send({ message: 'Failed to load user parcels' })
+            }
+        })
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
